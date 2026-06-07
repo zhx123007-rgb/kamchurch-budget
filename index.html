@@ -131,6 +131,7 @@ body {
 }
 .role-member { background: #d1ecf1; color: #0c5460; }
 .role-leader { background: #d4edda; color: #155724; }
+.role-minister { background: #e2d9f3; color: #4a2c7a; }
 .role-finance { background: #fff3cd; color: #856404; }
 .role-financeChair { background: #f8d7da; color: #721c24; }
 .role-admin { background: #e2d5f0; color: #4a148c; }
@@ -354,6 +355,7 @@ body {
     white-space: nowrap;
 }
 .status-pending-leader { background: #fff3cd; color: #856404; }
+.status-pending-minister { background: #e2d9f3; color: #4a2c7a; }
 .status-pending-finance { background: #d1ecf1; color: #0c5460; }
 .status-approved { background: #d4edda; color: #155724; }
 .status-rejected { background: #f8d7da; color: #721c24; }
@@ -1510,7 +1512,7 @@ input:checked + .slider:before {
     <div class="login-box">
         <div class="logo">⛪</div>
         <h1 class="login-title">교회 예산 관리 시스템</h1>
-        <p class="login-subtitle">v3.8.1 - 구글 시트 완전 연동 (실시간 동기화)</p>
+        <p class="login-subtitle">v3.9 - 교역자 결재 추가 (부서별 결재선)</p>
 
         <div id="loginForm">
             <div class="form-group">
@@ -1546,7 +1548,10 @@ input:checked + .slider:before {
 
             <div class="test-accounts">
                 <h4>🧪 테스트 계정 (비밀번호: 123456)</h4>
-                <p style="font-size:11px;color:#27ae60;margin:4px 0"><strong>⭐ v3.8 정확 데이터:</strong></p>
+                <p style="font-size:11px;color:#4a2c7a;margin:4px 0"><strong>⭐ v3.9 교역자 결재:</strong></p>
+                <p><strong>cadet_minister@test.com</strong> - 생도위 교역자</p>
+                <p><strong>edu_minister@test.com</strong> - 교육위 교역자(여러 부서)</p>
+                <p style="font-size:11px;color:#27ae60;margin:4px 0"><strong>부서 계정:</strong></p>
                 <p><strong>manage_member@test.com</strong> - 관리위원회 부서원</p>
                 <p><strong>manage_leader@test.com</strong> - 관리위원회 부서장</p>
                 <p><strong>cadet_member@test.com</strong> - 생도위원회 부서원</p>
@@ -2118,6 +2123,7 @@ input:checked + .slider:before {
                         <select id="newUserRole">
                             <option value="member">부서원</option>
                             <option value="leader">부서장</option>
+                            <option value="minister">교역자</option>
                             <option value="finance">재정 담당자</option>
                             <option value="financeChair">재정위원장</option>
                             <option value="admin">관리자</option>
@@ -2285,7 +2291,7 @@ let editingRequestId = null;  // v3: 수정 중인 신청
 const API_CONFIG = {
     // ⚠️ 호준님이 Apps Script 배포 후 이 URL 교체!
     // 예: https://script.google.com/macros/s/AKfycbz.../exec
-    URL: 'https://script.google.com/macros/s/AKfycbzrX7NlzAATmoVYFWg5w5rfqveNeIT9_88dQdY8CmfGUEFVYdK4sw-7zC7u1pIE_pJq/exec',
+    URL: 'https://script.google.com/macros/s/AKfycbyWFpZjCBJvrj9QKVs7m9ETzwm6PUp8c1GPkHYPR95bC3KP1-9gOXm-yvBJS0gy8t6X/exec',
     
     // 오프라인 모드 (URL 미설정 시 자동 LocalStorage 사용)
     OFFLINE_MODE: false,  // URL 설정됨
@@ -2498,18 +2504,22 @@ const SESSION_TIMEOUT_MIN = 60; // 60분 후 자동 로그아웃
 // ============================================
 // v3.8: 실제 육사교회 부서 구조 (관리위·생도위 우선 반영)
 // 다른 부서는 시범운영 후 별도 파일 입수 시 추가 예정
+// v3.9: needsMinister 플래그 추가
+//   true  = 교역자 결재 필요 (신청자→부서장→교역자→재정)
+//   false/없음 = 기존 2단계 (신청자→부서장→재정)
 const DEPARTMENTS = [
     { id: 'worship', name: '예배위원회', code: '예' },           // v3.5 데이터 유지 (호환)
     { id: 'manage', name: '관리위원회', code: '관', priority: true },     // ⭐ v3.8 신규 정확 반영
-    { id: 'cadet', name: '생도위원회', code: '생', priority: true },      // ⭐ v3.8 신규 정확 반영
+    { id: 'cadet', name: '생도위원회', code: '생', priority: true, needsMinister: true },   // ⭐ 교역자 결재 필요
+    // v3.9: 교육위 산하 부서 + 신우위 (교역자 결재 필요)
+    { id: 'edu_kid', name: '교육위(유치부)', code: '유', needsMinister: true },
+    { id: 'edu_elem', name: '교육위(초등부)', code: '초', needsMinister: true },
+    { id: 'edu_mid', name: '교육위(중고등부)', code: '중', needsMinister: true },
+    { id: 'edu_youth', name: '교육위(청년부)', code: '청년', needsMinister: true },
+    { id: 'shinwoo', name: '신우위원회', code: '신', needsMinister: true },
     // 시범운영 후 추가 예정 (별도 파일 입수 시):
     // { id: 'operation', name: '운영위원회', code: '운' },
     // { id: 'mission', name: '선교양육위원회', code: '선' },
-    // { id: 'edu_kid', name: '교육위(유치부)', code: '유' },
-    // { id: 'edu_elem', name: '교육위(초등부)', code: '초' },
-    // { id: 'edu_mid', name: '교육위(중고등부)', code: '중' },
-    // { id: 'edu_youth', name: '교육위(청년부)', code: '청' },
-    // { id: 'shinwoo', name: '신우위원회', code: '신' },
     // { id: 'finance_committee', name: '재정위원회', code: '재' },  // ⚠️ 인건비 포함, 마스킹 필요
     // { id: 'praise', name: '찬양위원회', code: '찬' },
     // { id: 'condolence', name: '경조위원회', code: '경' },
@@ -2524,6 +2534,12 @@ const DEPARTMENTS = [
     { id: 'praise', name: '찬양위원회(임시)' },
     { id: 'service', name: '봉사위원회(임시)' }
 ];
+
+// v3.9: 부서가 교역자 결재 필요한지 확인하는 헬퍼
+function departmentNeedsMinister(deptId) {
+    const dept = DEPARTMENTS.find(d => d.id === deptId);
+    return dept ? !!dept.needsMinister : false;
+}
 
 // v3.8: 실제 교회에서 사용하는 카테고리 (10가지 → 시스템 8개로)
 const CATEGORIES = [
@@ -2625,6 +2641,7 @@ const ITEM_STATUS = {
 const ROLE_NAMES = {
     member: '부서원',
     leader: '부서장',
+    minister: '교역자',
     finance: '재정 담당자',
     financeChair: '재정위원장',
     admin: '관리자'
@@ -2636,17 +2653,17 @@ const ROLE_NAMES = {
 
 // 보고서 메뉴 접근 가능 여부
 function canAccessReport() {
-    return ['leader', 'finance', 'financeChair', 'admin'].includes(currentUser.role);
+    return ['leader', 'minister', 'finance', 'financeChair', 'admin'].includes(currentUser.role);
 }
 
-// 전체 부서 보고서 가능 여부 (부서장은 본인 부서만)
+// 전체 부서 보고서 가능 여부 (부서장/교역자는 본인 담당 부서만)
 function canViewAllDepartmentsReport() {
     return ['finance', 'financeChair', 'admin'].includes(currentUser.role);
 }
 
 // 예산 현황 엑셀 다운로드 가능 여부 (부서장 이상)
 function canDownloadBudgetExcel() {
-    return ['leader', 'finance', 'financeChair', 'admin'].includes(currentUser.role);
+    return ['leader', 'minister', 'finance', 'financeChair', 'admin'].includes(currentUser.role);
 }
 
 // 양식 다운로드 가능 여부 (관리자/재정위원장만)
@@ -2662,6 +2679,26 @@ function canUploadBudget() {
 // 부서장이 본인 부서만 볼 수 있는지
 function isLeaderOnlyOwnDepartment() {
     return currentUser.role === 'leader';
+}
+
+// v3.9: 교역자가 담당하는 부서 ID 목록 반환
+//   departments 배열(여러 부서) 우선, 없으면 department(단일) 사용
+function getMinisterDepartments(user) {
+    if (!user) return [];
+    if (Array.isArray(user.departments) && user.departments.length > 0) {
+        return user.departments;
+    }
+    if (user.department) {
+        // 콤마 구분 문자열도 지원 (시트 호환: "edu_kid,edu_elem")
+        return String(user.department).split(',').map(s => s.trim()).filter(Boolean);
+    }
+    return [];
+}
+
+// v3.9: 현재 교역자가 특정 부서를 담당하는지
+function ministerHandlesDepartment(deptId) {
+    if (currentUser.role !== 'minister') return false;
+    return getMinisterDepartments(currentUser).includes(deptId);
 }
 
 // ============================================
@@ -2756,6 +2793,19 @@ function initSampleData() {
           department: 'cadet', role: 'leader',
           phone: '010-7777-2222', kakaoPhone: '010-7777-2222',
           position: '장로', joinDate: '2026-04-01', firstLogin: false,
+          createdBy: 'admin', isActive: true },
+        // v3.9: 교역자 테스트 계정
+        // 생도위 담당 교역자 (단일 부서)
+        { id: 'u10', name: '생도교역자', email: 'cadet_minister@test.com', passwordHash: HASHED_DEFAULT,
+          department: 'cadet', departments: ['cadet'], role: 'minister',
+          phone: '010-8888-1111', kakaoPhone: '010-8888-1111',
+          position: '전도사', joinDate: '2026-04-01', firstLogin: false,
+          createdBy: 'admin', isActive: true },
+        // 교육위 담당 교역자 (여러 부서: 유치부+초등부)
+        { id: 'u11', name: '교육교역자', email: 'edu_minister@test.com', passwordHash: HASHED_DEFAULT,
+          department: 'edu_kid', departments: ['edu_kid', 'edu_elem', 'edu_mid', 'edu_youth'], role: 'minister',
+          phone: '010-8888-2222', kakaoPhone: '010-8888-2222',
+          position: '목사', joinDate: '2026-04-01', firstLogin: false,
           createdBy: 'admin', isActive: true }
     ];
 
@@ -3036,6 +3086,7 @@ function formatMoney(amount) {
 function getStatusText(status) {
     const map = {
         'pending-leader': '부서장 검토 중',
+        'pending-minister': '교역자 검토 중',
         'pending-finance': '재정 검토 중',
         'approved': '승인 완료',
         'rejected': '반려됨',
@@ -3079,7 +3130,7 @@ function getBudgetStatus(departmentId, categoryId) {
         .reduce((sum, r) => sum + r.amount, 0);
     
     const pending = deptRequests
-        .filter(r => r.status === 'pending-leader' || r.status === 'pending-finance')
+        .filter(r => r.status === 'pending-leader' || r.status === 'pending-minister' || r.status === 'pending-finance')
         .reduce((sum, r) => sum + r.amount, 0);
     
     const available = totalBudget - approved - pending;
@@ -3107,7 +3158,7 @@ function getDepartmentBudgetSummary(departmentId) {
         .filter(r => r.status === 'approved')
         .reduce((sum, r) => sum + r.amount, 0);
     const pending = deptRequests
-        .filter(r => r.status === 'pending-leader' || r.status === 'pending-finance')
+        .filter(r => r.status === 'pending-leader' || r.status === 'pending-minister' || r.status === 'pending-finance')
         .reduce((sum, r) => sum + r.amount, 0);
     const available = totalBudget - approved - pending;
     
@@ -3343,8 +3394,8 @@ async function showMainApp() {
     const budgetPlanMenu = document.getElementById('menuBudgetPlan');
     const reportMenu = document.getElementById('menuReport');
 
-    // 승인 메뉴: 부서장, 재정담당자, 재정위원장
-    if (['leader', 'finance', 'financeChair'].includes(currentUser.role)) {
+    // 승인 메뉴: 부서장, 교역자, 재정담당자, 재정위원장
+    if (['leader', 'minister', 'finance', 'financeChair'].includes(currentUser.role)) {
         approvalMenu.style.display = 'flex';
     } else {
         approvalMenu.style.display = 'none';
@@ -4171,6 +4222,14 @@ function renderRequestCard(request, showActions) {
             </div>
         `;
     }
+    if (request.ministerApproval) {
+        approvalInfo += `
+            <div style="background:#e2d9f3;padding:10px;border-radius:8px;margin-top:10px;font-size:13px;color:#4a2c7a">
+                ✓ 교역자 승인: ${request.ministerApproval.approvedBy} 
+                (${new Date(request.ministerApproval.approvedDate).toLocaleDateString('ko-KR')})
+            </div>
+        `;
+    }
     if (request.financeApproval) {
         approvalInfo += `
             <div style="background:#d4edda;padding:10px;border-radius:8px;margin-top:10px;font-size:13px;color:#155724">
@@ -4300,6 +4359,14 @@ function renderApproval() {
             r.department === currentUser.department && r.status === 'pending-leader'
         );
         subtitle.textContent = `부서장 1차 검토 - ${getDepartmentName(currentUser.department)}`;
+    } else if (currentUser.role === 'minister') {
+        // v3.9: 교역자는 담당 부서의 pending-minister 신청만
+        const myDepts = getMinisterDepartments(currentUser);
+        filtered = requests.filter(r => 
+            myDepts.includes(r.department) && r.status === 'pending-minister'
+        );
+        const deptNames = myDepts.map(d => getDepartmentName(d)).join(', ');
+        subtitle.textContent = `교역자 검토 - ${deptNames || '담당 부서'}`;
     } else if (currentUser.role === 'finance' || currentUser.role === 'financeChair') {
         filtered = requests.filter(r => r.status === 'pending-finance');
         subtitle.textContent = '재정 부서 최종 검토 (전 부서)';
@@ -4344,7 +4411,17 @@ function renderApprovalCard(request) {
         `;
     }
 
-    const approveBtnText = currentUser.role === 'leader' ? '승인 → 재정부서로' : '최종 승인';
+    let approveBtnText;
+    if (currentUser.role === 'leader') {
+        // 교역자 결재 필요 부서면 교역자로, 아니면 재정으로
+        approveBtnText = departmentNeedsMinister(request.department) 
+            ? '승인 → 교역자에게' 
+            : '승인 → 재정부서로';
+    } else if (currentUser.role === 'minister') {
+        approveBtnText = '승인 → 재정부서로';
+    } else {
+        approveBtnText = '최종 승인';
+    }
 
     return `
         <div class="request-card">
@@ -4380,6 +4457,11 @@ function renderApprovalCard(request) {
             ${request.leaderApproval ? `
                 <div style="background:#d4edda;padding:10px;border-radius:8px;margin:10px 0;font-size:13px;color:#155724">
                     ✓ 부서장 승인 완료: ${request.leaderApproval.approvedBy}
+                </div>
+            ` : ''}
+            ${request.ministerApproval ? `
+                <div style="background:#e2d9f3;padding:10px;border-radius:8px;margin:10px 0;font-size:13px;color:#4a2c7a">
+                    ✓ 교역자 승인 완료: ${request.ministerApproval.approvedBy}
                 </div>
             ` : ''}
             <div class="request-actions">
@@ -4439,8 +4521,71 @@ async function approveRequest(id) {
     const users = JSON.parse(localStorage.getItem(STORAGE_KEYS.USERS) || '[]');
 
     if (currentUser.role === 'leader') {
+        // v3.9: 교역자 결재 필요 부서면 교역자에게, 아니면 재정으로
+        const needsMinister = departmentNeedsMinister(request.department);
+        
+        if (needsMinister) {
+            request.status = 'pending-minister';
+            request.leaderApproval = {
+                approvedBy: currentUser.name,
+                approvedDate: new Date().toISOString()
+            };
+            request.history.push({
+                action: 'approved',
+                by: currentUser.name,
+                byId: currentUser.id,
+                date: new Date().toISOString(),
+                details: '부서장 승인 (교역자에게 전달)'
+            });
+            
+            // v3.9: 담당 교역자에게 알림
+            const ministers = users.filter(u => 
+                u.role === 'minister' && 
+                getMinisterDepartments(u).includes(request.department)
+            );
+            ministers.forEach(m => {
+                sendNotification('leader_approved', m.id, {
+                    requestId: request.id,
+                    department: request.department,
+                    category: request.category,
+                    amount: request.amount,
+                    requesterName: request.requestedByName
+                });
+            });
+            
+            showNotification('승인 완료! 교역자에게 전달되었습니다.', 'success');
+        } else {
+            request.status = 'pending-finance';
+            request.leaderApproval = {
+                approvedBy: currentUser.name,
+                approvedDate: new Date().toISOString()
+            };
+            request.history.push({
+                action: 'approved',
+                by: currentUser.name,
+                byId: currentUser.id,
+                date: new Date().toISOString(),
+                details: '부서장 승인 (재정 부서로 전달)'
+            });
+            
+            // v3.5: 재정담당자에게 알림
+            const financeUsers = users.filter(u => u.role === 'finance');
+            financeUsers.forEach(fu => {
+                sendNotification('leader_approved', fu.id, {
+                    requestId: request.id,
+                    department: request.department,
+                    category: request.category,
+                    amount: request.amount,
+                    requesterName: request.requestedByName
+                });
+            });
+            
+            showNotification('승인 완료! 재정 부서로 전달되었습니다.', 'success');
+        }
+    } else if (currentUser.role === 'minister') {
+        // v3.9: 교역자 승인 → 재정으로 전달
         request.status = 'pending-finance';
-        request.leaderApproval = {
+        request.ministerApproval = {
             approvedBy: currentUser.name,
             approvedDate: new Date().toISOString()
         };
@@ -4449,10 +4594,10 @@ async function approveRequest(id) {
             by: currentUser.name,
             byId: currentUser.id,
             date: new Date().toISOString(),
-            details: '부서장 승인 (재정 부서로 전달)'
+            details: '교역자 승인 (재정 부서로 전달)'
         });
         
-        // v3.5: 재정담당자에게 알림
+        // 재정담당자에게 알림
         const financeUsers = users.filter(u => u.role === 'finance');
         financeUsers.forEach(fu => {
             sendNotification('leader_approved', fu.id, {
@@ -7868,7 +8013,7 @@ async function checkBackendStatus() {
         const response = await fetch(API_CONFIG.URL, { method: 'GET' });
         if (response.ok) {
             const data = await response.json();
-            statusEl.innerHTML = `✓ 백엔드 연결됨 (${data.version || 'v3.8'})`;
+            statusEl.innerHTML = `✓ 백엔드 연결됨 (${data.version || 'v3.9'})`;
             statusEl.style.color = '#27ae60';
         } else {
             statusEl.innerHTML = '⚠️ 백엔드 응답 오류';
