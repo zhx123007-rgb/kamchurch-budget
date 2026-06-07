@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>교회 예산 관리 시스템 v3.7</title>
+<title>교회 예산 관리 시스템 v3.8</title>
 <!-- SheetJS for Excel handling -->
 <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
 <style>
@@ -131,6 +131,7 @@ body {
 }
 .role-member { background: #d1ecf1; color: #0c5460; }
 .role-leader { background: #d4edda; color: #155724; }
+.role-minister { background: #e2d9f3; color: #4a2c7a; }
 .role-finance { background: #fff3cd; color: #856404; }
 .role-financeChair { background: #f8d7da; color: #721c24; }
 .role-admin { background: #e2d5f0; color: #4a148c; }
@@ -354,6 +355,7 @@ body {
     white-space: nowrap;
 }
 .status-pending-leader { background: #fff3cd; color: #856404; }
+.status-pending-minister { background: #e2d9f3; color: #4a2c7a; }
 .status-pending-finance { background: #d1ecf1; color: #0c5460; }
 .status-approved { background: #d4edda; color: #155724; }
 .status-rejected { background: #f8d7da; color: #721c24; }
@@ -1510,7 +1512,7 @@ input:checked + .slider:before {
     <div class="login-box">
         <div class="logo">⛪</div>
         <h1 class="login-title">교회 예산 관리 시스템</h1>
-        <p class="login-subtitle">v3.7 - 실제 예산 데이터 반영 (관리위·생도위)</p>
+        <p class="login-subtitle">v3.9 - 교역자 결재 추가 (부서별 결재선)</p>
 
         <div id="loginForm">
             <div class="form-group">
@@ -1532,7 +1534,7 @@ input:checked + .slider:before {
             </div>
             <button class="btn btn-primary" onclick="handleLogin()">로그인</button>
             
-            <!-- v3.7: 카카오 로그인 버튼 (UI만, 추후 활성화) -->
+            <!-- v3.8: 카카오 로그인 버튼 (UI만, 추후 활성화) -->
             <button class="btn-kakao" onclick="handleKakaoLogin()" 
                     style="width:100%;background:#FEE500;color:#3C1E1E;border:none;padding:12px;border-radius:8px;font-weight:600;font-size:14px;cursor:pointer;margin-top:10px;display:flex;align-items:center;justify-content:center;gap:8px">
                 <span>💬</span> 카카오로 로그인 (준비 중)
@@ -1546,7 +1548,10 @@ input:checked + .slider:before {
 
             <div class="test-accounts">
                 <h4>🧪 테스트 계정 (비밀번호: 123456)</h4>
-                <p style="font-size:11px;color:#27ae60;margin:4px 0"><strong>⭐ v3.7 정확 데이터:</strong></p>
+                <p style="font-size:11px;color:#4a2c7a;margin:4px 0"><strong>⭐ v3.9 교역자 결재:</strong></p>
+                <p><strong>cadet_minister@test.com</strong> - 생도위 교역자</p>
+                <p><strong>edu_minister@test.com</strong> - 교육위 교역자(여러 부서)</p>
+                <p style="font-size:11px;color:#27ae60;margin:4px 0"><strong>부서 계정:</strong></p>
                 <p><strong>manage_member@test.com</strong> - 관리위원회 부서원</p>
                 <p><strong>manage_leader@test.com</strong> - 관리위원회 부서장</p>
                 <p><strong>cadet_member@test.com</strong> - 생도위원회 부서원</p>
@@ -1562,11 +1567,16 @@ input:checked + .slider:before {
             <div style="background:#fff3cd;color:#856404;padding:10px;border-radius:8px;margin-top:15px;font-size:11px;border-left:3px solid #f39c12">
                 ℹ️ <strong>관리자 등록제:</strong> 회원가입은 관리자가 일괄 등록합니다. 계정이 필요하시면 관리자에게 문의하세요.
             </div>
+            
+            <!-- v3.8: 백엔드 연결 상태 표시 -->
+            <div id="backendStatus" style="margin-top:10px;font-size:10px;text-align:center;color:#95a5a6">
+                <span id="backendStatusText">백엔드 상태 확인 중...</span>
+            </div>
         </div>
     </div>
 </div>
 
-<!-- v3.7: 약관/방침 모달 -->
+<!-- v3.8: 약관/방침 모달 -->
 <div id="policyModal" class="modal">
     <div class="modal-content" style="max-width:700px;max-height:80vh;overflow-y:auto">
         <div id="policyModalContent"></div>
@@ -1580,12 +1590,14 @@ input:checked + .slider:before {
 <div id="mainApp" class="main-app">
     <div class="header">
         <div class="header-left">
-            <h1>⛪ 교회 예산 관리 시스템 <span style="font-size:14px;color:#667eea">v3.7</span></h1>
+            <h1>⛪ 교회 예산 관리 시스템 <span style="font-size:14px;color:#667eea">v3.8</span></h1>
             <p id="currentUserInfo"></p>
         </div>
         <div class="header-right">
             <span class="role-badge" id="roleBadge"></span>
             <span class="user-badge" id="userBadge"></span>
+            <!-- v3.8: 시트 동기화 버튼 -->
+            <button class="btn-logout" style="background:#27ae60" onclick="manualSync()" title="구글 시트에서 최신 데이터 가져오기">🔄 동기화</button>
             <!-- v3.5: 알림 벨 -->
             <div class="notification-bell" onclick="toggleNotificationDropdown(event)" title="알림함">
                 🔔
@@ -1706,7 +1718,7 @@ input:checked + .slider:before {
                         </select>
                     </div>
 
-                    <!-- v3.7: 사업명 선택 (실제 예산 항목 기반) -->
+                    <!-- v3.8: 사업명 선택 (실제 예산 항목 기반) -->
                     <div class="form-group" id="businessGroup" style="display:none">
                         <label>사업명 (코드) <span style="color:#7f8c8d;font-size:11px">- 해당 부서의 등록된 사업 선택</span></label>
                         <select id="reqBusinessCode" onchange="onBusinessSelect()">
@@ -1965,7 +1977,7 @@ input:checked + .slider:before {
                 </div>
             </div>
 
-            <!-- ===== v3.7: 마이페이지 ===== -->
+            <!-- ===== v3.8: 마이페이지 ===== -->
             <div id="myPageView" class="hidden">
                 <div class="content-header">
                     <div>
@@ -2050,7 +2062,7 @@ input:checked + .slider:before {
                 </div>
             </div>
 
-            <!-- ===== v3.7: 사용자 관리 (관리자 전용) ===== -->
+            <!-- ===== v3.8: 사용자 관리 (관리자 전용) ===== -->
             <div id="userManageView" class="hidden">
                 <div class="content-header">
                     <div>
@@ -2072,7 +2084,7 @@ input:checked + .slider:before {
                 </div>
             </div>
 
-            <!-- v3.7: 사용자 등록 모달 -->
+            <!-- v3.8: 사용자 등록 모달 -->
             <div id="addUserModal" class="modal">
                 <div class="modal-content" style="max-width:600px">
                     <div class="modal-header">➕ 새 사용자 등록</div>
@@ -2092,7 +2104,7 @@ input:checked + .slider:before {
                         <label>부서 *</label>
                         <select id="newUserDepartment">
                             <option value="">선택하세요</option>
-                            <optgroup label="⭐ v3.7 정확 반영 부서 (시범운영 권장)">
+                            <optgroup label="⭐ v3.8 정확 반영 부서 (시범운영 권장)">
                                 <option value="manage">관리위원회</option>
                                 <option value="cadet">생도위원회</option>
                                 <option value="worship">예배위원회</option>
@@ -2111,6 +2123,7 @@ input:checked + .slider:before {
                         <select id="newUserRole">
                             <option value="member">부서원</option>
                             <option value="leader">부서장</option>
+                            <option value="minister">교역자</option>
                             <option value="finance">재정 담당자</option>
                             <option value="financeChair">재정위원장</option>
                             <option value="admin">관리자</option>
@@ -2140,7 +2153,7 @@ input:checked + .slider:before {
                 </div>
             </div>
 
-            <!-- v3.7: 임시 비밀번호 표시 모달 -->
+            <!-- v3.8: 임시 비밀번호 표시 모달 -->
             <div id="tempPasswordModal" class="modal">
                 <div class="modal-content" style="max-width:500px">
                     <div class="modal-header">✅ 사용자 등록 완료</div>
@@ -2272,41 +2285,241 @@ let cancellingRequestId = null;
 let viewingRequestId = null;  // v3: 상세 보기 중인 신청
 let editingRequestId = null;  // v3: 수정 중인 신청
 
-const STORAGE_KEYS = {
-    USERS: 'cb_v37_users',
-    REQUESTS: 'cb_v37_requests',
-    CURRENT_USER: 'cb_v37_current_user',
-    BUDGET_PLANS: 'cb_v37_budget_plans',
-    DEPARTMENTS: 'cb_v37_departments',
-    CATEGORIES: 'cb_v37_categories',
-    NOTIFICATIONS: 'cb_v37_notifications',
-    NOTIFICATION_SETTINGS: 'cb_v37_notif_settings',
-    CONSENTS: 'cb_v37_consents',                // v3.7: 동의 이력
-    LOGIN_ATTEMPTS: 'cb_v37_login_attempts',    // v3.7: 로그인 실패 추적
-    SESSION: 'cb_v37_session'                   // v3.7: 세션 관리
+// ============================================
+// 🌐 v3.8: Apps Script API 연동
+// ============================================
+const API_CONFIG = {
+    // ⚠️ 호준님이 Apps Script 배포 후 이 URL 교체!
+    // 예: https://script.google.com/macros/s/AKfycbz.../exec
+    URL: 'https://script.google.com/macros/s/AKfycbyWFpZjCBJvrj9QKVs7m9ETzwm6PUp8c1GPkHYPR95bC3KP1-9gOXm-yvBJS0gy8t6X/exec',
+    
+    // 오프라인 모드 (URL 미설정 시 자동 LocalStorage 사용)
+    OFFLINE_MODE: false,  // URL 설정됨
+    
+    // 캐시 TTL (밀리초)
+    CACHE_TTL: 5 * 60 * 1000  // 5분
 };
 
-// v3.7: 약관 버전 (변경 시 재동의 필요)
+// 캐시 저장소 (메모리)
+const apiCache = new Map();
+
+/**
+ * Apps Script API 호출 헬퍼
+ */
+async function fetchAPI(action, params = {}) {
+    // 오프라인 모드 또는 URL 미설정 시 LocalStorage 폴백
+    if (API_CONFIG.OFFLINE_MODE || API_CONFIG.URL === 'YOUR_APPS_SCRIPT_URL_HERE') {
+        console.warn('[API] 오프라인 모드 - LocalStorage 사용');
+        return null; // null 반환 시 호출 측에서 LocalStorage 폴백
+    }
+    
+    try {
+        const token = currentUser?.token || localStorage.getItem('cb_v38_token') || null;
+        const body = {
+            action,
+            token,
+            ...params
+        };
+        
+        const response = await fetch(API_CONFIG.URL, {
+            method: 'POST',
+            mode: 'cors',
+            headers: { 'Content-Type': 'text/plain' }, // CORS 우회
+            body: JSON.stringify(body)
+        });
+        
+        if (!response.ok) {
+            throw new Error('서버 응답 오류: ' + response.status);
+        }
+        
+        const data = await response.json();
+        return data;
+    } catch (err) {
+        console.error('[API 오류]', action, err);
+        showNotification('서버 연결 오류: ' + err.message, 'error');
+        return { success: false, error: err.message };
+    }
+}
+
+/**
+ * 캐시 가능한 API 호출
+ */
+async function fetchAPICached(action, params = {}, ttl = API_CONFIG.CACHE_TTL) {
+    const key = action + '_' + JSON.stringify(params);
+    const cached = apiCache.get(key);
+    
+    if (cached && (Date.now() - cached.time < ttl)) {
+        return cached.data;
+    }
+    
+    const data = await fetchAPI(action, params);
+    if (data && data.success) {
+        apiCache.set(key, { data, time: Date.now() });
+    }
+    return data;
+}
+
+/**
+ * 캐시 무효화
+ */
+function invalidateCache(prefix = '') {
+    if (!prefix) {
+        apiCache.clear();
+    } else {
+        for (const key of apiCache.keys()) {
+            if (key.startsWith(prefix)) apiCache.delete(key);
+        }
+    }
+}
+
+/**
+ * v3.8: 사용자 수동 동기화 (헤더 버튼)
+ */
+async function manualSync() {
+    const result = await syncFromSheet(false);
+    if (result) {
+        showNotification('시트 데이터 동기화 완료!', 'success');
+        // 현재 화면 다시 그리기
+        const activeView = document.querySelector('.menu-item.active')?.dataset.view;
+        if (activeView === 'dashboard') renderDashboard();
+        else if (activeView === 'requests') renderRequests();
+        else if (activeView === 'approval') renderApproval();
+        else if (activeView === 'budget-status') renderBudgetStatus();
+        renderSidebarBudget();
+    } else {
+        showNotification('동기화 실패 (오프라인 모드)', 'error');
+    }
+}
+
+/**
+ * v3.8 옵션 A: 시트에서 LocalStorage로 동기화
+ * 로그인 시점 + 주기적으로 호출
+ */
+async function syncFromSheet(silent = false) {
+    if (API_CONFIG.OFFLINE_MODE || API_CONFIG.URL === 'YOUR_APPS_SCRIPT_URL_HERE') {
+        return false; // 오프라인 모드
+    }
+    
+    if (!silent) showLoading('시트에서 데이터 동기화 중...');
+    
+    try {
+        // 1. 신청내역 시트 → LocalStorage
+        const reqResult = await fetchAPI('getRequests', {});
+        if (reqResult && reqResult.success) {
+            localStorage.setItem(STORAGE_KEYS.REQUESTS, JSON.stringify(reqResult.data));
+            console.log('[Sync] 신청내역 동기화:', reqResult.data.length, '건');
+        }
+        
+        // 2. 사업마스터 시트 → 메모리 (BUDGET_ITEMS_MASTER 갱신)
+        const itemsResult = await fetchAPI('getBudgetItems', { dept: 'all' });
+        if (itemsResult && itemsResult.success) {
+            // BUDGET_ITEMS_MASTER 동적 업데이트
+            window.BUDGET_ITEMS_MASTER_SYNCED = itemsResult.data;
+            console.log('[Sync] 사업마스터 동기화:', itemsResult.data.length, '개');
+        }
+        
+        // 3. 사용자 시트 → LocalStorage (관리자만)
+        if (currentUser?.role === 'admin') {
+            const usersResult = await fetchAPI('getUsers', {});
+            if (usersResult && usersResult.success) {
+                localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(usersResult.data));
+                console.log('[Sync] 사용자 동기화:', usersResult.data.length, '명');
+            }
+        }
+        
+        if (!silent) hideLoading();
+        return true;
+    } catch (err) {
+        console.error('[Sync] 오류:', err);
+        if (!silent) hideLoading();
+        return false;
+    }
+}
+
+/**
+ * v3.8 옵션 A: 작업 후 시트 → LocalStorage 재동기화
+ * 신청/승인/반려 등 후 호출
+ */
+async function refreshFromSheet() {
+    if (API_CONFIG.OFFLINE_MODE || API_CONFIG.URL === 'YOUR_APPS_SCRIPT_URL_HERE') {
+        return;
+    }
+    
+    try {
+        const reqResult = await fetchAPI('getRequests', {});
+        if (reqResult && reqResult.success) {
+            localStorage.setItem(STORAGE_KEYS.REQUESTS, JSON.stringify(reqResult.data));
+            invalidateCache();
+        }
+    } catch (err) {
+        console.error('[Refresh] 오류:', err);
+    }
+}
+
+/**
+ * 로딩 인디케이터 표시
+ */
+function showLoading(message = '처리 중...') {
+    let loader = document.getElementById('apiLoader');
+    if (!loader) {
+        loader = document.createElement('div');
+        loader.id = 'apiLoader';
+        loader.style.cssText = `
+            position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            background: rgba(0,0,0,0.8); color: white; padding: 20px 30px;
+            border-radius: 10px; z-index: 9999; display: none;
+            font-size: 14px;
+        `;
+        document.body.appendChild(loader);
+    }
+    loader.textContent = '⏳ ' + message;
+    loader.style.display = 'block';
+}
+
+function hideLoading() {
+    const loader = document.getElementById('apiLoader');
+    if (loader) loader.style.display = 'none';
+}
+
+const STORAGE_KEYS = {
+    USERS: 'cb_v38_users',
+    REQUESTS: 'cb_v38_requests',
+    CURRENT_USER: 'cb_v38_current_user',
+    BUDGET_PLANS: 'cb_v38_budget_plans',
+    DEPARTMENTS: 'cb_v38_departments',
+    CATEGORIES: 'cb_v38_categories',
+    NOTIFICATIONS: 'cb_v38_notifications',
+    NOTIFICATION_SETTINGS: 'cb_v38_notif_settings',
+    CONSENTS: 'cb_v38_consents',
+    LOGIN_ATTEMPTS: 'cb_v38_login_attempts',
+    SESSION: 'cb_v38_session'
+};
+
+// v3.8: 약관 버전 (변경 시 재동의 필요)
 const POLICY_VERSION = '1.0';
 const SESSION_TIMEOUT_MIN = 60; // 60분 후 자동 로그아웃
 
 // ============================================
 // 마스터 데이터
 // ============================================
-// v3.7: 실제 육사교회 부서 구조 (관리위·생도위 우선 반영)
+// v3.8: 실제 육사교회 부서 구조 (관리위·생도위 우선 반영)
 // 다른 부서는 시범운영 후 별도 파일 입수 시 추가 예정
+// v3.9: needsMinister 플래그 추가
+//   true  = 교역자 결재 필요 (신청자→부서장→교역자→재정)
+//   false/없음 = 기존 2단계 (신청자→부서장→재정)
 const DEPARTMENTS = [
     { id: 'worship', name: '예배위원회', code: '예' },           // v3.5 데이터 유지 (호환)
-    { id: 'manage', name: '관리위원회', code: '관', priority: true },     // ⭐ v3.7 신규 정확 반영
-    { id: 'cadet', name: '생도위원회', code: '생', priority: true },      // ⭐ v3.7 신규 정확 반영
+    { id: 'manage', name: '관리위원회', code: '관', priority: true },     // ⭐ v3.8 신규 정확 반영
+    { id: 'cadet', name: '생도위원회', code: '생', priority: true, needsMinister: true },   // ⭐ 교역자 결재 필요
+    // v3.9: 교육위 산하 부서 + 신우위 (교역자 결재 필요)
+    { id: 'edu_kid', name: '교육위(유치부)', code: '유', needsMinister: true },
+    { id: 'edu_elem', name: '교육위(초등부)', code: '초', needsMinister: true },
+    { id: 'edu_mid', name: '교육위(중고등부)', code: '중', needsMinister: true },
+    { id: 'edu_youth', name: '교육위(청년부)', code: '청년', needsMinister: true },
+    { id: 'shinwoo', name: '신우위원회', code: '신', needsMinister: true },
     // 시범운영 후 추가 예정 (별도 파일 입수 시):
     // { id: 'operation', name: '운영위원회', code: '운' },
     // { id: 'mission', name: '선교양육위원회', code: '선' },
-    // { id: 'edu_kid', name: '교육위(유치부)', code: '유' },
-    // { id: 'edu_elem', name: '교육위(초등부)', code: '초' },
-    // { id: 'edu_mid', name: '교육위(중고등부)', code: '중' },
-    // { id: 'edu_youth', name: '교육위(청년부)', code: '청' },
-    // { id: 'shinwoo', name: '신우위원회', code: '신' },
     // { id: 'finance_committee', name: '재정위원회', code: '재' },  // ⚠️ 인건비 포함, 마스킹 필요
     // { id: 'praise', name: '찬양위원회', code: '찬' },
     // { id: 'condolence', name: '경조위원회', code: '경' },
@@ -2322,19 +2535,25 @@ const DEPARTMENTS = [
     { id: 'service', name: '봉사위원회(임시)' }
 ];
 
-// v3.7: 실제 교회에서 사용하는 카테고리 (10가지 → 시스템 8개로)
+// v3.9: 부서가 교역자 결재 필요한지 확인하는 헬퍼
+function departmentNeedsMinister(deptId) {
+    const dept = DEPARTMENTS.find(d => d.id === deptId);
+    return dept ? !!dept.needsMinister : false;
+}
+
+// v3.8: 실제 교회에서 사용하는 카테고리 (10가지 → 시스템 8개로)
 const CATEGORIES = [
     { id: 'fellowship', name: '친교비' },     // 가장 많이 사용
     { id: 'event', name: '행사비' },
-    { id: 'manage_cost', name: '관리비' },    // v3.7 신규 (관리위)
-    { id: 'mission', name: '선교비' },        // v3.7 신규 (선교양육위, 생도위 등)
+    { id: 'manage_cost', name: '관리비' },    // v3.8 신규 (관리위)
+    { id: 'mission', name: '선교비' },        // v3.8 신규 (선교양육위, 생도위 등)
     { id: 'education', name: '교육비' },
     { id: 'worship_supplies', name: '예배비' },
-    { id: 'operation', name: '운영비' },      // v3.7 신규
+    { id: 'operation', name: '운영비' },      // v3.8 신규
     { id: 'other', name: '기타' }
 ];
 
-// v3.7: 실제 사업 마스터 데이터 (관리위·생도위)
+// v3.8: 실제 사업 마스터 데이터 (관리위·생도위)
 // 보안: 민감 정보(실명, 계좌, 인건비 상세)는 제외
 const BUDGET_ITEMS_MASTER = [
     // ==================== 관리위원회 (관-01 ~ 관-07) ====================
@@ -2422,6 +2641,7 @@ const ITEM_STATUS = {
 const ROLE_NAMES = {
     member: '부서원',
     leader: '부서장',
+    minister: '교역자',
     finance: '재정 담당자',
     financeChair: '재정위원장',
     admin: '관리자'
@@ -2433,17 +2653,17 @@ const ROLE_NAMES = {
 
 // 보고서 메뉴 접근 가능 여부
 function canAccessReport() {
-    return ['leader', 'finance', 'financeChair', 'admin'].includes(currentUser.role);
+    return ['leader', 'minister', 'finance', 'financeChair', 'admin'].includes(currentUser.role);
 }
 
-// 전체 부서 보고서 가능 여부 (부서장은 본인 부서만)
+// 전체 부서 보고서 가능 여부 (부서장/교역자는 본인 담당 부서만)
 function canViewAllDepartmentsReport() {
     return ['finance', 'financeChair', 'admin'].includes(currentUser.role);
 }
 
 // 예산 현황 엑셀 다운로드 가능 여부 (부서장 이상)
 function canDownloadBudgetExcel() {
-    return ['leader', 'finance', 'financeChair', 'admin'].includes(currentUser.role);
+    return ['leader', 'minister', 'finance', 'financeChair', 'admin'].includes(currentUser.role);
 }
 
 // 양식 다운로드 가능 여부 (관리자/재정위원장만)
@@ -2461,6 +2681,26 @@ function isLeaderOnlyOwnDepartment() {
     return currentUser.role === 'leader';
 }
 
+// v3.9: 교역자가 담당하는 부서 ID 목록 반환
+//   departments 배열(여러 부서) 우선, 없으면 department(단일) 사용
+function getMinisterDepartments(user) {
+    if (!user) return [];
+    if (Array.isArray(user.departments) && user.departments.length > 0) {
+        return user.departments;
+    }
+    if (user.department) {
+        // 콤마 구분 문자열도 지원 (시트 호환: "edu_kid,edu_elem")
+        return String(user.department).split(',').map(s => s.trim()).filter(Boolean);
+    }
+    return [];
+}
+
+// v3.9: 현재 교역자가 특정 부서를 담당하는지
+function ministerHandlesDepartment(deptId) {
+    if (currentUser.role !== 'minister') return false;
+    return getMinisterDepartments(currentUser).includes(deptId);
+}
+
 // ============================================
 // 초기화
 // ============================================
@@ -2469,23 +2709,27 @@ function initApp() {
         initSampleData();
     }
 
-    // 회원가입 부서 옵션 초기화
+    // v3.8 fix: 회원가입 부서 옵션 초기화 (v3.6에서 제거됐으므로 null 체크)
     const deptSelect = document.getElementById('registerDepartment');
-    DEPARTMENTS.forEach(d => {
-        const opt = document.createElement('option');
-        opt.value = d.id;
-        opt.textContent = d.name;
-        deptSelect.appendChild(opt);
-    });
+    if (deptSelect) {
+        DEPARTMENTS.forEach(d => {
+            const opt = document.createElement('option');
+            opt.value = d.id;
+            opt.textContent = d.name;
+            deptSelect.appendChild(opt);
+        });
+    }
 
     // 예산 신청 항목 옵션 초기화
     const catSelect = document.getElementById('reqCategory');
-    CATEGORIES.forEach(c => {
-        const opt = document.createElement('option');
-        opt.value = c.id;
-        opt.textContent = c.name;
-        catSelect.appendChild(opt);
-    });
+    if (catSelect) {
+        CATEGORIES.forEach(c => {
+            const opt = document.createElement('option');
+            opt.value = c.id;
+            opt.textContent = c.name;
+            catSelect.appendChild(opt);
+        });
+    }
 
     // 로그인 상태 복원
     const savedUser = localStorage.getItem(STORAGE_KEYS.CURRENT_USER);
@@ -2497,7 +2741,7 @@ function initApp() {
 
 function initSampleData() {
     // 사용자
-    // v3.7: 비밀번호는 SHA-256 해싱됨 (원본 비번: 123456)
+    // v3.8: 비밀번호는 SHA-256 해싱됨 (원본 비번: 123456)
     // 모든 테스트 계정 동일: hashPassword('123456') 결과
     const HASHED_DEFAULT = 'e3756520cb43b5865bc2b54290c37411d3cc3bf93e128eee15bb88db695020c7';
     
@@ -2528,7 +2772,7 @@ function initSampleData() {
           phone: '010-5555-6666', kakaoPhone: '010-5555-6666',
           position: '시스템 관리자', joinDate: '2026-04-01', firstLogin: false,
           createdBy: 'system', isActive: true },
-        // v3.7: 관리위원회 테스트 계정
+        // v3.8: 관리위원회 테스트 계정
         { id: 'u6', name: '관리부원', email: 'manage_member@test.com', passwordHash: HASHED_DEFAULT,
           department: 'manage', role: 'member',
           phone: '010-6666-1111', kakaoPhone: '010-6666-1111',
@@ -2539,7 +2783,7 @@ function initSampleData() {
           phone: '010-6666-2222', kakaoPhone: '010-6666-2222',
           position: '장로', joinDate: '2026-04-01', firstLogin: false,
           createdBy: 'admin', isActive: true },
-        // v3.7: 생도위원회 테스트 계정
+        // v3.8: 생도위원회 테스트 계정
         { id: 'u8', name: '생도부원', email: 'cadet_member@test.com', passwordHash: HASHED_DEFAULT,
           department: 'cadet', role: 'member',
           phone: '010-7777-1111', kakaoPhone: '010-7777-1111',
@@ -2549,6 +2793,19 @@ function initSampleData() {
           department: 'cadet', role: 'leader',
           phone: '010-7777-2222', kakaoPhone: '010-7777-2222',
           position: '장로', joinDate: '2026-04-01', firstLogin: false,
+          createdBy: 'admin', isActive: true },
+        // v3.9: 교역자 테스트 계정
+        // 생도위 담당 교역자 (단일 부서)
+        { id: 'u10', name: '생도교역자', email: 'cadet_minister@test.com', passwordHash: HASHED_DEFAULT,
+          department: 'cadet', departments: ['cadet'], role: 'minister',
+          phone: '010-8888-1111', kakaoPhone: '010-8888-1111',
+          position: '전도사', joinDate: '2026-04-01', firstLogin: false,
+          createdBy: 'admin', isActive: true },
+        // 교육위 담당 교역자 (여러 부서: 유치부+초등부)
+        { id: 'u11', name: '교육교역자', email: 'edu_minister@test.com', passwordHash: HASHED_DEFAULT,
+          department: 'edu_kid', departments: ['edu_kid', 'edu_elem', 'edu_mid', 'edu_youth'], role: 'minister',
+          phone: '010-8888-2222', kakaoPhone: '010-8888-2222',
+          position: '목사', joinDate: '2026-04-01', firstLogin: false,
           createdBy: 'admin', isActive: true }
     ];
 
@@ -2557,7 +2814,7 @@ function initSampleData() {
     const samplePlans = [];
     
     // ============================================
-    // v3.7: 부서×카테고리별 예산 계획
+    // v3.8: 부서×카테고리별 예산 계획
     // ============================================
     
     // [관리위원회] - 실제 데이터 100% 정확 (총 18,488,000원)
@@ -2829,6 +3086,7 @@ function formatMoney(amount) {
 function getStatusText(status) {
     const map = {
         'pending-leader': '부서장 검토 중',
+        'pending-minister': '교역자 검토 중',
         'pending-finance': '재정 검토 중',
         'approved': '승인 완료',
         'rejected': '반려됨',
@@ -2872,7 +3130,7 @@ function getBudgetStatus(departmentId, categoryId) {
         .reduce((sum, r) => sum + r.amount, 0);
     
     const pending = deptRequests
-        .filter(r => r.status === 'pending-leader' || r.status === 'pending-finance')
+        .filter(r => r.status === 'pending-leader' || r.status === 'pending-minister' || r.status === 'pending-finance')
         .reduce((sum, r) => sum + r.amount, 0);
     
     const available = totalBudget - approved - pending;
@@ -2900,7 +3158,7 @@ function getDepartmentBudgetSummary(departmentId) {
         .filter(r => r.status === 'approved')
         .reduce((sum, r) => sum + r.amount, 0);
     const pending = deptRequests
-        .filter(r => r.status === 'pending-leader' || r.status === 'pending-finance')
+        .filter(r => r.status === 'pending-leader' || r.status === 'pending-minister' || r.status === 'pending-finance')
         .reduce((sum, r) => sum + r.amount, 0);
     const available = totalBudget - approved - pending;
     
@@ -2936,8 +3194,44 @@ async function handleLogin() {
         showNotification('이메일과 비밀번호를 입력하세요.', 'error');
         return;
     }
+    
+    // v3.8: API 우선 시도 (구글 시트 백엔드)
+    showLoading('로그인 중...');
+    const apiResult = await fetchAPI('login', { email, password });
+    hideLoading();
+    
+    if (apiResult !== null) {
+        // API 응답이 있는 경우 (온라인 모드)
+        if (apiResult.success) {
+            currentUser = apiResult.user;
+            currentUser.token = apiResult.user.token;
+            localStorage.setItem(STORAGE_KEYS.CURRENT_USER, JSON.stringify(currentUser));
+            localStorage.setItem('cb_v38_token', apiResult.user.token);
+            createSession(currentUser.id);
+            
+            if (currentUser.firstLogin) {
+                showMainApp();
+                setTimeout(() => {
+                    if (confirm('첫 로그인입니다. 보안을 위해 비밀번호를 변경하시겠습니까?')) {
+                        showMyPage();
+                    }
+                }, 500);
+            } else {
+                showMainApp();
+            }
+            
+            showNotification(`환영합니다, ${currentUser.name}님!`, 'success');
+            return;
+        } else {
+            showNotification(apiResult.error || '로그인 실패', 'error');
+            return;
+        }
+    }
+    
+    // 오프라인 폴백 (기존 LocalStorage 방식)
+    console.log('[Login] LocalStorage 폴백 모드');
 
-    // v3.7: 계정 잠금 체크
+    // v3.8: 계정 잠금 체크
     if (isAccountLocked(email)) {
         const attempts = JSON.parse(localStorage.getItem(STORAGE_KEYS.LOGIN_ATTEMPTS) || '{}');
         const unlockTime = new Date(attempts[email].lockedUntil);
@@ -2955,13 +3249,13 @@ async function handleLogin() {
         return;
     }
     
-    // v3.7: 비활성화된 계정 체크
+    // v3.8: 비활성화된 계정 체크
     if (user.isActive === false) {
         showNotification('비활성화된 계정입니다. 관리자에게 문의하세요.', 'error');
         return;
     }
     
-    // v3.7: 비밀번호 검증 (해싱)
+    // v3.8: 비밀번호 검증 (해싱)
     let isPasswordValid = false;
     if (user.passwordHash) {
         isPasswordValid = await verifyPassword(password, user.passwordHash);
@@ -2989,7 +3283,7 @@ async function handleLogin() {
         return;
     }
     
-    // v3.7: 로그인 성공
+    // v3.8: 로그인 성공
     trackLoginAttempt(email, true);
     
     // 마지막 로그인 시각 기록
@@ -3001,10 +3295,10 @@ async function handleLogin() {
     currentUser = user;
     localStorage.setItem(STORAGE_KEYS.CURRENT_USER, JSON.stringify(user));
     
-    // v3.7: 세션 생성
+    // v3.8: 세션 생성
     createSession(user.id);
     
-    // v3.7: 첫 로그인 시 비밀번호 변경 안내
+    // v3.8: 첫 로그인 시 비밀번호 변경 안내
     if (user.firstLogin) {
         showMainApp();
         setTimeout(() => {
@@ -3057,10 +3351,20 @@ function handleRegister() {
     document.getElementById('registerPassword').value = '';
 }
 
-function handleLogout() {
+async function handleLogout() {
     if (!confirm('로그아웃 하시겠습니까?')) return;
+    
+    // v3.8: API 호출 (선택적)
+    if (currentUser?.token) {
+        try {
+            await fetchAPI('logout', {});
+        } catch (e) { /* 무시 */ }
+    }
+    
     currentUser = null;
-    clearSession();  // v3.7: 세션 정리
+    clearSession();  // v3.8: 세션 정리
+    localStorage.removeItem('cb_v38_token');
+    invalidateCache();
     document.getElementById('loginScreen').style.display = 'flex';
     document.getElementById('mainApp').style.display = 'none';
     showNotification('로그아웃되었습니다.', 'success');
@@ -3069,9 +3373,12 @@ function handleLogout() {
 // ============================================
 // 메인 앱 표시 (역할별 구성)
 // ============================================
-function showMainApp() {
+async function showMainApp() {
     document.getElementById('loginScreen').style.display = 'none';
     document.getElementById('mainApp').style.display = 'block';
+    
+    // v3.8: 시트에서 최신 데이터 동기화 (옵션 A 핵심)
+    await syncFromSheet();
 
     document.getElementById('currentUserInfo').textContent = 
         `${getDepartmentName(currentUser.department)} · ${ROLE_NAMES[currentUser.role]}`;
@@ -3087,8 +3394,8 @@ function showMainApp() {
     const budgetPlanMenu = document.getElementById('menuBudgetPlan');
     const reportMenu = document.getElementById('menuReport');
 
-    // 승인 메뉴: 부서장, 재정담당자, 재정위원장
-    if (['leader', 'finance', 'financeChair'].includes(currentUser.role)) {
+    // 승인 메뉴: 부서장, 교역자, 재정담당자, 재정위원장
+    if (['leader', 'minister', 'finance', 'financeChair'].includes(currentUser.role)) {
         approvalMenu.style.display = 'flex';
     } else {
         approvalMenu.style.display = 'none';
@@ -3127,7 +3434,7 @@ function showMainApp() {
         }
     }
 
-    // v3.7: 마이페이지/사용자 관리 메뉴 권한
+    // v3.8: 마이페이지/사용자 관리 메뉴 권한
     const myPageMenu = document.getElementById('menuMyPage');
     const userManageMenu = document.getElementById('menuUserManage');
     
@@ -3203,9 +3510,11 @@ function switchView(viewId) {
     document.querySelectorAll('.menu-item').forEach(i => i.classList.remove('active'));
 }
 
-function showDashboard() {
+async function showDashboard() {
     switchView('dashboardView');
     document.querySelector('[data-view="dashboard"]').classList.add('active');
+    // v3.8: 시트에서 최신 데이터 (조용히)
+    await syncFromSheet(true);
     renderDashboard();
 }
 
@@ -3215,14 +3524,14 @@ function showNewRequest() {
     document.getElementById('budgetRequestForm').reset();
     document.getElementById('budgetStatusDisplay').innerHTML = '';
     document.getElementById('amountWarning').innerHTML = '';
-    // v3.7: 사업 선택 초기화
+    // v3.8: 사업 선택 초기화
     const businessGroup = document.getElementById('businessGroup');
     const businessInfo = document.getElementById('businessInfo');
     if (businessGroup) businessGroup.style.display = 'none';
     if (businessInfo) businessInfo.innerHTML = '';
 }
 
-function showRequests(resetViewMode = true) {
+async function showRequests(resetViewMode = true) {
     switchView('requestsView');
     document.querySelector('[data-view="requests"]').classList.add('active');
     
@@ -3232,12 +3541,16 @@ function showRequests(resetViewMode = true) {
         currentFilter = 'all';
     }
     
+    // v3.8: 시트에서 최신 데이터 (조용히)
+    await syncFromSheet(true);
     renderRequests();
 }
 
-function showApproval() {
+async function showApproval() {
     switchView('approvalView');
     document.querySelector('[data-view="approval"]').classList.add('active');
+    // v3.8: 시트에서 최신 데이터 (조용히)
+    await syncFromSheet(true);
     renderApproval();
 }
 
@@ -3576,7 +3889,7 @@ function updateBudgetStatus() {
 }
 
 // ============================================
-// v3.7: 사업명 선택 (실제 예산 마스터 기반)
+// v3.8: 사업명 선택 (실제 예산 마스터 기반)
 // ============================================
 function updateBusinessOptions() {
     const categoryId = document.getElementById('reqCategory').value;
@@ -3723,7 +4036,7 @@ function checkBudgetLimit() {
     }
 }
 
-document.getElementById('budgetRequestForm').addEventListener('submit', function(e) {
+document.getElementById('budgetRequestForm').addEventListener('submit', async function(e) {
     e.preventDefault();
     
     const category = document.getElementById('reqCategory').value;
@@ -3731,7 +4044,7 @@ document.getElementById('budgetRequestForm').addEventListener('submit', function
     const purpose = document.getElementById('reqPurpose').value.trim();
     const usageDate = document.getElementById('reqUsageDate').value;
     
-    // v3.7: 사업 코드 (선택 사항)
+    // v3.8: 사업 코드 (선택 사항)
     const businessCodeEl = document.getElementById('reqBusinessCode');
     const businessCode = businessCodeEl ? businessCodeEl.value : '';
     let businessName = '';
@@ -3752,13 +4065,44 @@ document.getElementById('budgetRequestForm').addEventListener('submit', function
         }
     }
 
+    // v3.8: API 우선 시도
+    showLoading('신청 제출 중...');
+    const apiResult = await fetchAPI('createRequest', {
+        data: {
+            category,
+            amount,
+            purpose,
+            usageDate,
+            businessCode: businessCode || null,
+            businessName: businessName || null
+        }
+    });
+    hideLoading();
+    
+    if (apiResult !== null) {
+        // 온라인 모드
+        if (apiResult.success) {
+            invalidateCache('getRequests');
+            showNotification('예산 신청이 부서장에게 전달되었습니다!', 'success');
+            renderSidebarBudget();
+            showDashboard();
+            return;
+        } else {
+            showNotification(apiResult.error || '신청 실패', 'error');
+            return;
+        }
+    }
+    
+    // 오프라인 폴백 (LocalStorage)
+    console.log('[Request] LocalStorage 폴백 모드');
+    
     const requests = JSON.parse(localStorage.getItem(STORAGE_KEYS.REQUESTS) || '[]');
     const newRequest = {
         id: 'r' + Date.now(),
         department: currentUser.department,
         category, amount, purpose, usageDate,
-        businessCode: businessCode || null,    // v3.7: 사업 코드
-        businessName: businessName || null,    // v3.7: 사업명
+        businessCode: businessCode || null,
+        businessName: businessName || null,
         requestedBy: currentUser.id,
         requestedByName: currentUser.name,
         requestDate: new Date().toISOString(),
@@ -3875,6 +4219,14 @@ function renderRequestCard(request, showActions) {
             <div style="background:#d4edda;padding:10px;border-radius:8px;margin-top:10px;font-size:13px;color:#155724">
                 ✓ 부서장 승인: ${request.leaderApproval.approvedBy} 
                 (${new Date(request.leaderApproval.approvedDate).toLocaleDateString('ko-KR')})
+            </div>
+        `;
+    }
+    if (request.ministerApproval) {
+        approvalInfo += `
+            <div style="background:#e2d9f3;padding:10px;border-radius:8px;margin-top:10px;font-size:13px;color:#4a2c7a">
+                ✓ 교역자 승인: ${request.ministerApproval.approvedBy} 
+                (${new Date(request.ministerApproval.approvedDate).toLocaleDateString('ko-KR')})
             </div>
         `;
     }
@@ -4007,6 +4359,14 @@ function renderApproval() {
             r.department === currentUser.department && r.status === 'pending-leader'
         );
         subtitle.textContent = `부서장 1차 검토 - ${getDepartmentName(currentUser.department)}`;
+    } else if (currentUser.role === 'minister') {
+        // v3.9: 교역자는 담당 부서의 pending-minister 신청만
+        const myDepts = getMinisterDepartments(currentUser);
+        filtered = requests.filter(r => 
+            myDepts.includes(r.department) && r.status === 'pending-minister'
+        );
+        const deptNames = myDepts.map(d => getDepartmentName(d)).join(', ');
+        subtitle.textContent = `교역자 검토 - ${deptNames || '담당 부서'}`;
     } else if (currentUser.role === 'finance' || currentUser.role === 'financeChair') {
         filtered = requests.filter(r => r.status === 'pending-finance');
         subtitle.textContent = '재정 부서 최종 검토 (전 부서)';
@@ -4051,7 +4411,17 @@ function renderApprovalCard(request) {
         `;
     }
 
-    const approveBtnText = currentUser.role === 'leader' ? '승인 → 재정부서로' : '최종 승인';
+    let approveBtnText;
+    if (currentUser.role === 'leader') {
+        // 교역자 결재 필요 부서면 교역자로, 아니면 재정으로
+        approveBtnText = departmentNeedsMinister(request.department) 
+            ? '승인 → 교역자에게' 
+            : '승인 → 재정부서로';
+    } else if (currentUser.role === 'minister') {
+        approveBtnText = '승인 → 재정부서로';
+    } else {
+        approveBtnText = '최종 승인';
+    }
 
     return `
         <div class="request-card">
@@ -4089,6 +4459,11 @@ function renderApprovalCard(request) {
                     ✓ 부서장 승인 완료: ${request.leaderApproval.approvedBy}
                 </div>
             ` : ''}
+            ${request.ministerApproval ? `
+                <div style="background:#e2d9f3;padding:10px;border-radius:8px;margin:10px 0;font-size:13px;color:#4a2c7a">
+                    ✓ 교역자 승인 완료: ${request.ministerApproval.approvedBy}
+                </div>
+            ` : ''}
             <div class="request-actions">
                 <button class="btn-small btn-success" onclick="approveRequest('${request.id}')">
                     ${approveBtnText}
@@ -4101,7 +4476,41 @@ function renderApprovalCard(request) {
     `;
 }
 
-function approveRequest(id) {
+async function approveRequest(id) {
+    // v3.8: API 우선 시도
+    showLoading('승인 처리 중...');
+    const apiResult = await fetchAPI('approveRequest', { id });
+    hideLoading();
+    
+    if (apiResult !== null) {
+        // 온라인 모드
+        if (apiResult.success) {
+            // 시트에서 최신 데이터 가져오기
+            await refreshFromSheet();
+            
+            const newStatus = apiResult.newStatus;
+            if (newStatus === 'pending-finance') {
+                showNotification('승인 완료! 재정 부서로 전달되었습니다.', 'success');
+            } else if (newStatus === 'approved') {
+                showNotification('최종 승인되었습니다!', 'success');
+            }
+            
+            renderSidebarBudget();
+            renderApproval();
+            
+            if (viewingRequestId === id) {
+                showDetailModal(id);
+            }
+            return;
+        } else {
+            showNotification(apiResult.error || '승인 실패', 'error');
+            return;
+        }
+    }
+    
+    // 오프라인 폴백
+    console.log('[Approve] LocalStorage 폴백 모드');
+    
     const requests = JSON.parse(localStorage.getItem(STORAGE_KEYS.REQUESTS) || '[]');
     const request = requests.find(r => r.id === id);
     if (!request) return;
@@ -4112,8 +4521,71 @@ function approveRequest(id) {
     const users = JSON.parse(localStorage.getItem(STORAGE_KEYS.USERS) || '[]');
 
     if (currentUser.role === 'leader') {
+        // v3.9: 교역자 결재 필요 부서면 교역자에게, 아니면 재정으로
+        const needsMinister = departmentNeedsMinister(request.department);
+        
+        if (needsMinister) {
+            request.status = 'pending-minister';
+            request.leaderApproval = {
+                approvedBy: currentUser.name,
+                approvedDate: new Date().toISOString()
+            };
+            request.history.push({
+                action: 'approved',
+                by: currentUser.name,
+                byId: currentUser.id,
+                date: new Date().toISOString(),
+                details: '부서장 승인 (교역자에게 전달)'
+            });
+            
+            // v3.9: 담당 교역자에게 알림
+            const ministers = users.filter(u => 
+                u.role === 'minister' && 
+                getMinisterDepartments(u).includes(request.department)
+            );
+            ministers.forEach(m => {
+                sendNotification('leader_approved', m.id, {
+                    requestId: request.id,
+                    department: request.department,
+                    category: request.category,
+                    amount: request.amount,
+                    requesterName: request.requestedByName
+                });
+            });
+            
+            showNotification('승인 완료! 교역자에게 전달되었습니다.', 'success');
+        } else {
+            request.status = 'pending-finance';
+            request.leaderApproval = {
+                approvedBy: currentUser.name,
+                approvedDate: new Date().toISOString()
+            };
+            request.history.push({
+                action: 'approved',
+                by: currentUser.name,
+                byId: currentUser.id,
+                date: new Date().toISOString(),
+                details: '부서장 승인 (재정 부서로 전달)'
+            });
+            
+            // v3.5: 재정담당자에게 알림
+            const financeUsers = users.filter(u => u.role === 'finance');
+            financeUsers.forEach(fu => {
+                sendNotification('leader_approved', fu.id, {
+                    requestId: request.id,
+                    department: request.department,
+                    category: request.category,
+                    amount: request.amount,
+                    requesterName: request.requestedByName
+                });
+            });
+            
+            showNotification('승인 완료! 재정 부서로 전달되었습니다.', 'success');
+        }
+    } else if (currentUser.role === 'minister') {
+        // v3.9: 교역자 승인 → 재정으로 전달
         request.status = 'pending-finance';
-        request.leaderApproval = {
+        request.ministerApproval = {
             approvedBy: currentUser.name,
             approvedDate: new Date().toISOString()
         };
@@ -4122,10 +4594,10 @@ function approveRequest(id) {
             by: currentUser.name,
             byId: currentUser.id,
             date: new Date().toISOString(),
-            details: '부서장 승인 (재정 부서로 전달)'
+            details: '교역자 승인 (재정 부서로 전달)'
         });
         
-        // v3.5: 재정담당자에게 알림
+        // 재정담당자에게 알림
         const financeUsers = users.filter(u => u.role === 'finance');
         financeUsers.forEach(fu => {
             sendNotification('leader_approved', fu.id, {
@@ -4188,12 +4660,43 @@ function closeRejectModal() {
     document.getElementById('rejectModal').classList.remove('active');
 }
 
-function confirmReject() {
+async function confirmReject() {
     const reason = document.getElementById('rejectReason').value.trim();
     if (!reason) {
         showNotification('반려 사유를 입력하세요.', 'error');
         return;
     }
+
+    // v3.8: API 우선 시도
+    showLoading('반려 처리 중...');
+    const apiResult = await fetchAPI('rejectRequest', { 
+        id: rejectingRequestId, 
+        reason 
+    });
+    hideLoading();
+    
+    if (apiResult !== null) {
+        // 온라인 모드
+        if (apiResult.success) {
+            await refreshFromSheet();
+            showNotification('신청이 반려되었습니다.', 'success');
+            
+            const wasViewing = viewingRequestId === rejectingRequestId;
+            const reqId = rejectingRequestId;
+            closeRejectModal();
+            renderApproval();
+            if (wasViewing) {
+                showDetailModal(reqId);
+            }
+            return;
+        } else {
+            showNotification(apiResult.error || '반려 실패', 'error');
+            return;
+        }
+    }
+    
+    // 오프라인 폴백
+    console.log('[Reject] LocalStorage 폴백 모드');
 
     const requests = JSON.parse(localStorage.getItem(STORAGE_KEYS.REQUESTS) || '[]');
     const request = requests.find(r => r.id === rejectingRequestId);
@@ -4231,8 +4734,34 @@ function confirmReject() {
     }
 }
 
-function cancelBeforeApproval(id) {
+async function cancelBeforeApproval(id) {
     if (!confirm('신청을 취소하시겠습니까?')) return;
+    
+    // v3.8: API 우선 시도
+    showLoading('취소 처리 중...');
+    const apiResult = await fetchAPI('cancelRequest', { id });
+    hideLoading();
+    
+    if (apiResult !== null) {
+        if (apiResult.success) {
+            await refreshFromSheet();
+            showNotification('신청이 취소되었습니다.', 'success');
+            renderRequests();
+            renderSidebarBudget();
+            
+            if (viewingRequestId === id) {
+                closeDetailModal();
+            }
+            return;
+        } else {
+            showNotification(apiResult.error || '취소 실패', 'error');
+            return;
+        }
+    }
+    
+    // 오프라인 폴백
+    console.log('[Cancel] LocalStorage 폴백 모드');
+    
     const requests = JSON.parse(localStorage.getItem(STORAGE_KEYS.REQUESTS) || '[]');
     const request = requests.find(r => r.id === id);
     if (request) {
@@ -5221,7 +5750,7 @@ function checkEditBudgetLimit() {
     }
 }
 
-function saveEditRequest() {
+async function saveEditRequest() {
     const amount = parseInt(document.getElementById('editAmount').value);
     const purpose = document.getElementById('editPurpose').value.trim();
     const usageDate = document.getElementById('editUsageDate').value;
@@ -5245,6 +5774,36 @@ function saveEditRequest() {
             return;
         }
     }
+    
+    // v3.8: API 우선 시도
+    showLoading('수정 저장 중...');
+    const apiResult = await fetchAPI('updateRequest', {
+        id: editingRequestId,
+        data: { amount, purpose, usageDate }
+    });
+    hideLoading();
+    
+    if (apiResult !== null) {
+        if (apiResult.success) {
+            await refreshFromSheet();
+            showNotification('신청이 수정되었습니다.', 'success');
+            
+            const reqId = editingRequestId;
+            closeEditModal();
+            renderRequests();
+            renderSidebarBudget();
+            if (viewingRequestId === reqId) {
+                showDetailModal(reqId);
+            }
+            return;
+        } else {
+            showNotification(apiResult.error || '수정 실패', 'error');
+            return;
+        }
+    }
+    
+    // 오프라인 폴백
+    console.log('[Edit] LocalStorage 폴백 모드');
     
     // 변경사항 감지
     const changes = {};
@@ -6091,7 +6650,7 @@ function downloadReportExcel() {
 }
 
 // ============================================
-// v3.7: 보안 강화 (비밀번호 해싱, 세션 관리)
+// v3.8: 보안 강화 (비밀번호 해싱, 세션 관리)
 // ============================================
 
 // SHA-256 해싱 (간단한 보안 강화)
@@ -6211,7 +6770,7 @@ function getConsent(userId) {
 }
 
 // ============================================
-// v3.7: 약관/개인정보 처리방침 모달
+// v3.8: 약관/개인정보 처리방침 모달
 // ============================================
 function showPolicyModal(type) {
     const modal = document.getElementById('policyModal');
@@ -6405,14 +6964,14 @@ function getNotificationConsentHTML() {
 }
 
 // ============================================
-// v3.7: 카카오 로그인 (UI 만, 추후 활성화)
+// v3.8: 카카오 로그인 (UI 만, 추후 활성화)
 // ============================================
 function handleKakaoLogin() {
     showNotification('카카오 로그인은 현재 준비 중입니다. 시범운영 안정화 후 활성화될 예정입니다.', 'info');
 }
 
 // ============================================
-// v3.7: 비밀번호 표시 토글
+// v3.8: 비밀번호 표시 토글
 // ============================================
 function togglePasswordVisibility(inputId, btn) {
     const input = document.getElementById(inputId);
@@ -6957,7 +7516,7 @@ function clearAllNotifications() {
 }
 
 // ============================================
-// v3.7: 마이페이지
+// v3.8: 마이페이지
 // ============================================
 function showMyPage() {
     if (!currentUser) return;
@@ -7182,7 +7741,7 @@ function requestWithdraw() {
 }
 
 // ============================================
-// v3.7: 사용자 관리 (관리자 전용)
+// v3.8: 사용자 관리 (관리자 전용)
 // ============================================
 function showUserManage() {
     if (!currentUser || currentUser.role !== 'admin') {
@@ -7437,7 +7996,38 @@ async function resetUserPassword(userId) {
 }
 
 
+// ============================================
+// v3.8: 백엔드 연결 상태 체크
+// ============================================
+async function checkBackendStatus() {
+    const statusEl = document.getElementById('backendStatusText');
+    if (!statusEl) return;
+    
+    if (API_CONFIG.URL === 'YOUR_APPS_SCRIPT_URL_HERE' || API_CONFIG.OFFLINE_MODE) {
+        statusEl.innerHTML = '⚠️ 오프라인 모드 (LocalStorage 사용)';
+        statusEl.style.color = '#f39c12';
+        return;
+    }
+    
+    try {
+        const response = await fetch(API_CONFIG.URL, { method: 'GET' });
+        if (response.ok) {
+            const data = await response.json();
+            statusEl.innerHTML = `✓ 백엔드 연결됨 (${data.version || 'v3.9'})`;
+            statusEl.style.color = '#27ae60';
+        } else {
+            statusEl.innerHTML = '⚠️ 백엔드 응답 오류';
+            statusEl.style.color = '#e74c3c';
+        }
+    } catch (err) {
+        statusEl.innerHTML = '⚠️ 백엔드 연결 불가 (LocalStorage 사용)';
+        statusEl.style.color = '#e74c3c';
+    }
+}
+
 initApp();
+// v3.8: 시작 시 백엔드 체크
+setTimeout(checkBackendStatus, 500);
 </script>
 
 </body>
