@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>교회 예산 관리 시스템 v4.0</title>
+<title>교회 예산 관리 시스템 v4.1</title>
 <!-- SheetJS for Excel handling -->
 <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
 <style>
@@ -1544,7 +1544,7 @@ document.dispatchEvent(new Event('firebase-ready'));
     <div class="login-box">
         <div class="logo">⛪</div>
         <h1 class="login-title">교회 예산 관리 시스템</h1>
-        <p class="login-subtitle">v4.0 - Firebase 백엔드 (실시간)</p>
+        <p class="login-subtitle">v4.1 - Firebase 백엔드 (실시간)</p>
 
         <div id="loginForm">
             <div class="form-group">
@@ -1622,7 +1622,7 @@ document.dispatchEvent(new Event('firebase-ready'));
 <div id="mainApp" class="main-app">
     <div class="header">
         <div class="header-left">
-            <h1>⛪ 교회 예산 관리 시스템 <span style="font-size:14px;color:#667eea">v4.0</span></h1>
+            <h1>⛪ 교회 예산 관리 시스템 <span style="font-size:14px;color:#667eea">v4.1</span></h1>
             <p id="currentUserInfo"></p>
         </div>
         <div class="header-right">
@@ -2389,7 +2389,22 @@ function fbNormalizeRequest(id, d) {
 // 메인: fetchAPI 대체 (Firebase)
 // v3.9의 모든 호출이 이 함수로 들어옴
 // ============================================
+function waitForFirebase(timeoutMs = 15000) {
+    if (window.fbReady && window.fb) return Promise.resolve();
+    return new Promise((resolve, reject) => {
+        const t0 = Date.now();
+        const iv = setInterval(() => {
+            if (window.fbReady && window.fb) { clearInterval(iv); resolve(); }
+            else if (Date.now() - t0 > timeoutMs) {
+                clearInterval(iv);
+                reject(new Error('Firebase 초기화가 완료되지 않았습니다. 새로고침해 주세요.'));
+            }
+        }, 50);
+    });
+}
+
 async function fetchAPI(action, params = {}) {
+    await waitForFirebase();
     const { db, auth } = window.fb;
     const {
         collection, doc, getDoc, getDocs, setDoc, addDoc,
@@ -2680,6 +2695,99 @@ async function manualSync() {
  * v3.8 옵션 A: 시트에서 LocalStorage로 동기화
  * 로그인 시점 + 주기적으로 호출
  */
+const DEPT_ORDER = ['운','예','선','교','유','초','중','청','생','신','재','관','찬','경','감','여','남'];
+
+/**
+ * v4.1: 부서 · 세목 · 예산계획을 Firestore에서 직접 읽어온다.
+ * 예산계획은 budgetItems(사업)를 부서×세목으로 합산해 만든다.
+ */
+async function syncMasterData() {
+    await waitForFirebase();
+    const { db } = window.fb;
+    const { collection, getDocs } = window.fb.dbFns;
+
+    // 1) 부서
+    const dSnap = await getDocs(collection(db, 'departments'));
+    if (dSnap.size > 0) {
+        const list = [];
+        dSnap.forEach(ds => {
+            const v = ds.data();
+            list.push({
+                id: ds.id,
+                name: v.name || ds.id,
+                code: v.code || '',
+                needsMinister: !!v.needsMinister
+            });
+        });
+        list.sort((a, b) => {
+            const ia = DEPT_ORDER.indexOf(a.code), ib = DEPT_ORDER.indexOf(b.code);
+            return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib);
+        });
+        DEPARTMENTS = list;
+        console.log('[Sync] 부서 동기화:', list.length, '개');
+    }
+
+    // 2) 세목
+    const cSnap = await getDocs(collection(db, 'categories'));
+    if (cSnap.size > 0) {
+        const list = [];
+        cSnap.forEach(cs => {
+            const v = cs.data();
+            list.push({ id: cs.id, name: v.name || cs.id, order: v.order ?? 99 });
+        });
+        list.sort((a, b) => a.order - b.order);
+        CATEGORIES = list;
+        console.log('[Sync] 세목 동기화:', list.length, '개');
+    }
+
+    // 3) 사업 → 예산계획 산출
+    const bSnap = await getDocs(collection(db, 'budgetItems'));
+    if (bSnap.size > 0) {
+        const year = new Date().getFullYear();
+        const sums = {};
+        bSnap.forEach(bs => {
+            const v = bs.data();
+            if (!v.deptId || !v.category) return;
+            const key = v.deptId + '||' + v.category;
+            sums[key] = (sums[key] || 0) + (Number(v.amount) || 0);
+        });
+        const plans = Object.keys(sums).map(key => {
+            const [departmentId, categoryId] = key.split('||');
+            return {
+                id: 'p_' + departmentId + '_' + categoryId,
+                year, departmentId, categoryId,
+                amount: sums[key]
+            };
+        });
+        localStorage.setItem(STORAGE_KEYS.BUDGET_PLANS, JSON.stringify(plans));
+        console.log('[Sync] 예산계획 산출:', plans.length, '건 / 총',
+            plans.reduce((a, p) => a + p.amount, 0).toLocaleString('ko-KR'), '원');
+    }
+
+    // 4) 화면의 부서·세목 선택 목록 갱신
+    refreshMasterSelects();
+}
+
+/** 부서·세목 <select> 옵션을 현재 마스터로 다시 채운다 (v4.1) */
+function refreshMasterSelects() {
+    const fill = (id, rows) => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        const keep = el.value;
+        el.innerHTML = '<option value="">선택하세요</option>';
+        rows.forEach(r => {
+            const o = document.createElement('option');
+            o.value = r.id;
+            o.textContent = r.name;
+            el.appendChild(o);
+        });
+        if (keep && el.querySelector('option[value="' + keep + '"]')) el.value = keep;
+    };
+    fill('registerDepartment', DEPARTMENTS);
+    fill('newUserDepartment', DEPARTMENTS);
+    fill('reqCategory', CATEGORIES);
+}
+
 async function syncFromSheet(silent = false) {
     if (API_CONFIG.OFFLINE_MODE || API_CONFIG.URL === 'YOUR_APPS_SCRIPT_URL_HERE') {
         return false; // 오프라인 모드
@@ -2688,6 +2796,9 @@ async function syncFromSheet(silent = false) {
     if (!silent) showLoading('Firebase에서 데이터 불러오는 중...');
     
     try {
+        // 0. v4.1: 부서·세목·예산계획 (가장 먼저)
+        await syncMasterData();
+
         // 1. 신청내역 시트 → LocalStorage
         const reqResult = await fetchAPI('getRequests', {});
         if (reqResult && reqResult.success) {
@@ -2699,7 +2810,12 @@ async function syncFromSheet(silent = false) {
         const itemsResult = await fetchAPI('getBudgetItems', { dept: 'all' });
         if (itemsResult && itemsResult.success) {
             // BUDGET_ITEMS_MASTER 동적 업데이트
-            window.BUDGET_ITEMS_MASTER_SYNCED = itemsResult.data;
+            // v4.1: deptId → dept 로 맞춰 실제 사용 가능하게 저장
+            window.BUDGET_ITEMS_MASTER_SYNCED = itemsResult.data.map(b => ({
+                code: b.code, dept: b.deptId, category: b.category,
+                name: b.name, amount: Number(b.amount) || 0,
+                status: b.status || 'normal', note: ''
+            }));
             console.log('[Sync] 사업마스터 동기화:', itemsResult.data.length, '개');
         }
         
@@ -2792,7 +2908,7 @@ const SESSION_TIMEOUT_MIN = 60; // 60분 후 자동 로그아웃
 // v3.9: needsMinister 플래그 추가
 //   true  = 교역자 결재 필요 (신청자→부서장→교역자→재정)
 //   false/없음 = 기존 2단계 (신청자→부서장→재정)
-const DEPARTMENTS = [
+let DEPARTMENTS = [
     { id: 'worship', name: '예배위원회', code: '예' },           // v3.5 데이터 유지 (호환)
     { id: 'manage', name: '관리위원회', code: '관', priority: true },     // ⭐ v3.8 신규 정확 반영
     { id: 'cadet', name: '생도위원회', code: '생', priority: true, needsMinister: true },   // ⭐ 교역자 결재 필요
@@ -2827,7 +2943,7 @@ function departmentNeedsMinister(deptId) {
 }
 
 // v3.8: 실제 교회에서 사용하는 카테고리 (10가지 → 시스템 8개로)
-const CATEGORIES = [
+let CATEGORIES = [
     { id: 'fellowship', name: '친교비' },     // 가장 많이 사용
     { id: 'event', name: '행사비' },
     { id: 'manage_cost', name: '관리비' },    // v3.8 신규 (관리위)
@@ -2990,7 +3106,16 @@ function ministerHandlesDepartment(deptId) {
 // 초기화
 // ============================================
 function initApp() {
-    if (!localStorage.getItem(STORAGE_KEYS.USERS)) {
+    // v4.1: 구버전(v3.8) 캐시 정리 — 부서/예산이 옛 값으로 남는 문제 해결
+    if (localStorage.getItem('cb_v41_migrated') !== '1') {
+        [STORAGE_KEYS.BUDGET_PLANS, STORAGE_KEYS.DEPARTMENTS, STORAGE_KEYS.CATEGORIES]
+            .forEach(k => localStorage.removeItem(k));
+        localStorage.setItem('cb_v41_migrated', '1');
+        console.log('[v4.1] 구버전 캐시를 정리했습니다.');
+    }
+
+    // v4.1: Firebase 모드에서는 샘플 데이터를 만들지 않는다
+    if (API_CONFIG.OFFLINE_MODE && !localStorage.getItem(STORAGE_KEYS.USERS)) {
         initSampleData();
     }
 
@@ -4187,8 +4312,12 @@ function updateBusinessOptions() {
         return;
     }
     
+    // v4.1: Firestore에서 받은 최신 사업 목록을 우선 사용
+    const MASTER = (window.BUDGET_ITEMS_MASTER_SYNCED && window.BUDGET_ITEMS_MASTER_SYNCED.length)
+        ? window.BUDGET_ITEMS_MASTER_SYNCED : BUDGET_ITEMS_MASTER;
+
     // 현재 사용자의 부서 + 선택한 카테고리에 해당하는 사업 마스터 조회
-    const matchingItems = BUDGET_ITEMS_MASTER.filter(item =>
+    const matchingItems = MASTER.filter(item =>
         item.dept === currentUser.department &&
         item.category === categoryId &&
         item.amount > 0  // 0원 항목(삭제/이관)은 제외
@@ -8288,6 +8417,12 @@ async function checkBackendStatus() {
     const statusEl = document.getElementById('backendStatusText');
     if (!statusEl) return;
     
+    if (API_CONFIG.URL === 'FIREBASE_BACKEND') {
+        statusEl.innerHTML = window.fbReady ? '✓ Firebase 연결됨 (v4.1)' : '⏳ Firebase 연결 중…';
+        statusEl.style.color = window.fbReady ? '#27ae60' : '#f39c12';
+        return;
+    }
+
     if (API_CONFIG.URL === 'YOUR_APPS_SCRIPT_URL_HERE' || API_CONFIG.OFFLINE_MODE) {
         statusEl.innerHTML = '⚠️ 오프라인 모드 (LocalStorage 사용)';
         statusEl.style.color = '#f39c12';
